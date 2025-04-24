@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -13,6 +13,8 @@ import ClientForm from './components/ClientForm';
 import ProgramList from './components/ProgramList';
 import ProgramForm from './components/ProgramForm';
 import EnrollmentForm from './components/EnrollmentForm';
+import Login from './components/Login';
+import ProtectedRoute from './components/ProtectedRoute';
 
 // Layouts
 import AppLayout from './layouts/AppLayout';
@@ -47,24 +49,33 @@ function App() {
         <CssBaseline />
         <AuthProvider>
           <Routes>
-            <Route path="/" element={<AppLayout />}>
-              <Route index element={<Dashboard />} />
-              
-              {/* Client Routes */}
-              <Route path="clients" element={<ClientList />} />
-              <Route path="clients/new" element={<ClientForm />} />
-              <Route path="clients/:id" element={<ClientProfile />} />
-              <Route path="clients/:id/edit" element={<ClientForm />} />
-              
-              {/* Program Routes */}
-              <Route path="programs" element={<ProgramList />} />
-              <Route path="programs/new" element={<ProgramForm />} />
-              <Route path="programs/:id/edit" element={<ProgramForm />} />
-              
-              {/* Enrollment Routes */}
-              <Route path="enrollments/new" element={<EnrollmentForm />} />
-              <Route path="enrollments/:id/edit" element={<EnrollmentForm />} />
+            {/* Public Routes */}
+            <Route path="/login" element={<Login />} />
+            
+            {/* Protected Routes - will redirect to login if not authenticated */}
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AppLayout />}>
+                <Route path="/" element={<Dashboard />} />
+                
+                {/* Client Routes */}
+                <Route path="clients" element={<ClientList />} />
+                <Route path="clients/new" element={<ClientForm />} />
+                <Route path="clients/:id" element={<ClientProfile />} />
+                <Route path="clients/:id/edit" element={<ClientForm />} />
+                
+                {/* Program Routes */}
+                <Route path="programs" element={<ProgramList />} />
+                <Route path="programs/new" element={<ProgramForm />} />
+                <Route path="programs/:id/edit" element={<ProgramForm />} />
+                
+                {/* Enrollment Routes */}
+                <Route path="enrollments/new" element={<EnrollmentForm />} />
+                <Route path="enrollments/:id/edit" element={<EnrollmentForm />} />
+              </Route>
             </Route>
+            
+            {/* Catch all - redirect to dashboard */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AuthProvider>
       </LocalizationProvider>

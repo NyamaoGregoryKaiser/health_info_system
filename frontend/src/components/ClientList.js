@@ -56,15 +56,20 @@ export default function ClientList() {
   const fetchClients = async () => {
     try {
       setLoading(true);
-      const data = await clientService.getClients({ county: countyFilter });
-      setClients(data);
+      const response = await clientService.getClients({ county: countyFilter });
+      // Ensure clients is always an array
+      const clientsData = response?.results || response || [];
+      setClients(Array.isArray(clientsData) ? clientsData : []);
       
       // Extract unique counties for filter dropdown
-      const uniqueCounties = [...new Set(data.map(client => client.county))].filter(Boolean);
+      const uniqueCounties = Array.isArray(clientsData) 
+        ? [...new Set(clientsData.filter(client => client && client.county).map(client => client.county))]
+        : [];
       setCounties(uniqueCounties);
     } catch (err) {
       console.error('Error fetching clients:', err);
       setError('Failed to load clients. Please try again later.');
+      setClients([]);
     } finally {
       setLoading(false);
     }
@@ -78,11 +83,14 @@ export default function ClientList() {
     
     try {
       setLoading(true);
-      const results = await clientService.searchClients(searchQuery);
-      setClients(results);
+      const response = await clientService.searchClients(searchQuery);
+      // Ensure results is always an array
+      const resultsData = response?.results || response || [];
+      setClients(Array.isArray(resultsData) ? resultsData : []);
     } catch (err) {
       console.error('Error searching clients:', err);
       setError('Failed to search clients. Please try again later.');
+      setClients([]);
     } finally {
       setLoading(false);
     }
@@ -110,21 +118,22 @@ export default function ClientList() {
     setPage(0);
   };
 
-  // Apply client filtering for search
-  const filteredClients = searchQuery 
-    ? clients.filter(client => 
-        client.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        client.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        client.national_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        client.phone_number.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : clients;
+  // Apply client filtering for search - ensuring filteredClients is always an array
+  let filteredClients = [];
+  if (Array.isArray(clients)) {
+    filteredClients = searchQuery 
+      ? clients.filter(client => 
+          client?.first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          client?.last_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          client?.national_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          client?.phone_number?.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      : clients;
+  }
     
-  // Apply pagination
-  const paginatedClients = filteredClients.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
+  // Apply pagination - ensuring filteredClients is an array before calling slice
+  const paginatedClients = Array.isArray(filteredClients) ? 
+    filteredClients.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage) : [];
 
   return (
     <div>
@@ -206,11 +215,11 @@ export default function ClientList() {
                   <TableBody>
                     {paginatedClients.length > 0 ? (
                       paginatedClients.map((client) => (
-                        <TableRow key={client.id}>
+                        <TableRow key={client.id || client.client_id}>
                           <TableCell>
                             {client.first_name} {client.last_name}
                           </TableCell>
-                          <TableCell>{client.national_id}</TableCell>
+                          <TableCell>{client.national_id || client.id_number}</TableCell>
                           <TableCell>{client.phone_number}</TableCell>
                           <TableCell>{client.county}</TableCell>
                           <TableCell>
@@ -219,21 +228,21 @@ export default function ClientList() {
                           <TableCell align="right">
                             <IconButton
                               component={Link}
-                              to={`/clients/${client.id}`}
+                              to={`/clients/${client.id || client.client_id}`}
                               color="primary"
                             >
                               <ViewIcon />
                             </IconButton>
                             <IconButton
                               component={Link}
-                              to={`/clients/${client.id}/edit`}
+                              to={`/clients/${client.id || client.client_id}/edit`}
                               color="secondary"
                             >
                               <EditIcon />
                             </IconButton>
                             <IconButton
                               color="error"
-                              onClick={() => handleDelete(client.id)}
+                              onClick={() => handleDelete(client.id || client.client_id)}
                             >
                               <DeleteIcon />
                             </IconButton>
@@ -254,7 +263,7 @@ export default function ClientList() {
               <TablePagination
                 rowsPerPageOptions={[5, 10, 25]}
                 component="div"
-                count={filteredClients.length}
+                count={Array.isArray(filteredClients) ? filteredClients.length : 0}
                 rowsPerPage={rowsPerPage}
                 page={page}
                 onPageChange={handleChangePage}

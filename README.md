@@ -111,5 +111,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Contributors
 
-- Ministry of Health, Kenya
-- [Your Name/Organization]
+- Nyamao Gregory Kaiser

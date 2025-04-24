@@ -1,4 +1,5 @@
 import api from './api';
+import axios from 'axios';
 
 const programService = {
   // Get all health programs with optional filtering
@@ -38,7 +39,7 @@ const programService = {
   
   // Get program categories
   getCategories: async () => {
-    const response = await api.get('/categories/');
+    const response = await api.get('/program-categories/');
     return response.data;
   },
   
@@ -70,10 +71,20 @@ const programService = {
     return response.data.results;
   },
   
-  // Get dashboard data
+  // Get dashboard data - using direct axios call to avoid path issues
   getDashboardData: async () => {
-    const response = await api.get('/dashboard/summary/');
-    return response.data;
+    try {
+      const response = await axios.get('/api/dashboard/', { withCredentials: true });
+      return response.data;
+    } catch (error) {
+      console.error("Dashboard data error:", error);
+      return {
+        clients: { total: 0, new_this_month: 0 },
+        programs: { active: 0, total: 0 },
+        enrollments: { by_status: [], by_program: [] },
+        clients_by_county: []
+      };
+    }
   }
 };
 

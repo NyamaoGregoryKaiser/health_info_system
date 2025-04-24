@@ -6,8 +6,14 @@ from clients.models import Client, Enrollment
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name']
-        read_only_fields = ['id']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_staff']
+        read_only_fields = ['id', 'is_staff']
+        
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Add a name field that combines first and last name
+        data['name'] = f"{instance.first_name} {instance.last_name}".strip() or instance.username
+        return data
 
 class ProgramCategorySerializer(serializers.ModelSerializer):
     class Meta:

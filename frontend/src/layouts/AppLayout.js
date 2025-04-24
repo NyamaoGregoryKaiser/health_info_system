@@ -15,7 +15,12 @@ import {
   Toolbar,
   Typography,
   Button,
-  Avatar
+  Avatar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -33,6 +38,7 @@ const drawerWidth = 240;
 
 export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, logout, user } = useAuth();
@@ -44,6 +50,16 @@ export default function AppLayout() {
   const navigateTo = (path) => {
     navigate(path);
     setMobileOpen(false);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+    setLogoutDialogOpen(false);
   };
 
   const menuItems = [
@@ -79,7 +95,7 @@ export default function AppLayout() {
       <Divider />
       <List>
         <ListItem disablePadding>
-          <ListItemButton onClick={logout}>
+          <ListItemButton onClick={() => setLogoutDialogOpen(true)}>
             <ListItemIcon>
               <LogoutIcon />
             </ListItemIcon>
@@ -88,6 +104,27 @@ export default function AppLayout() {
         </ListItem>
       </List>
     </div>
+  );
+
+  // Logout confirmation dialog
+  const logoutDialog = (
+    <Dialog
+      open={logoutDialogOpen}
+      onClose={() => setLogoutDialogOpen(false)}
+    >
+      <DialogTitle>Confirm Logout</DialogTitle>
+      <DialogContent>
+        <DialogContentText>
+          Are you sure you want to logout?
+        </DialogContentText>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setLogoutDialogOpen(false)}>Cancel</Button>
+        <Button onClick={handleLogout} color="primary" autoFocus>
+          Logout
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 
   return (
@@ -169,6 +206,7 @@ export default function AppLayout() {
       >
         <Outlet />
       </Box>
+      {logoutDialog}
     </Box>
   );
 } 

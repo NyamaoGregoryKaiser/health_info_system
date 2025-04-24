@@ -24,7 +24,18 @@ export default function Dashboard() {
     const fetchDashboardData = async () => {
       try {
         const data = await programService.getDashboardData();
-        setDashboardData(data);
+        // Ensure we have valid data
+        if (data && typeof data === 'object') {
+          setDashboardData(data);
+        } else {
+          // If data is invalid, use default empty structure
+          setDashboardData({
+            clients: { total: 0, new_this_month: 0 },
+            programs: { active: 0, total: 0 },
+            enrollments: { by_status: [], by_program: [] },
+            clients_by_county: []
+          });
+        }
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
         setError('Failed to load dashboard data. Please try again later.');
@@ -63,12 +74,17 @@ export default function Dashboard() {
     clients_by_county: []
   };
 
+  // Ensure we have all the required properties
+  const enrollmentsByStatus = Array.isArray(data?.enrollments?.by_status) ? data.enrollments.by_status : [];
+  const enrollmentsByProgram = Array.isArray(data?.enrollments?.by_program) ? data.enrollments.by_program : [];
+  const clientsByCounty = Array.isArray(data?.clients_by_county) ? data.clients_by_county : [];
+
   // Prepare chart data for enrollments by status
   const enrollmentStatusData = {
-    labels: data.enrollments.by_status.map(item => item.status),
+    labels: enrollmentsByStatus.map(item => item?.status || 'Unknown'),
     datasets: [
       {
-        data: data.enrollments.by_status.map(item => item.count),
+        data: enrollmentsByStatus.map(item => item?.count || 0),
         backgroundColor: [
           '#4CAF50',
           '#2196F3',
@@ -82,11 +98,11 @@ export default function Dashboard() {
 
   // Prepare chart data for enrollments by program
   const enrollmentProgramData = {
-    labels: data.enrollments.by_program.map(item => item.program__name),
+    labels: enrollmentsByProgram.map(item => item?.program__name || 'Unknown'),
     datasets: [
       {
         label: 'Enrollments',
-        data: data.enrollments.by_program.map(item => item.count),
+        data: enrollmentsByProgram.map(item => item?.count || 0),
         backgroundColor: 'rgba(54, 162, 235, 0.5)',
         borderColor: 'rgba(54, 162, 235, 1)',
         borderWidth: 1,
@@ -96,11 +112,11 @@ export default function Dashboard() {
 
   // Prepare chart data for clients by county
   const clientsByCountyData = {
-    labels: data.clients_by_county.map(item => item.county),
+    labels: clientsByCounty.map(item => item?.county || 'Unknown'),
     datasets: [
       {
         label: 'Clients',
-        data: data.clients_by_county.map(item => item.count),
+        data: clientsByCounty.map(item => item?.count || 0),
         backgroundColor: 'rgba(75, 192, 192, 0.5)',
         borderColor: 'rgba(75, 192, 192, 1)',
         borderWidth: 1,
@@ -123,7 +139,7 @@ export default function Dashboard() {
                 Total Clients
               </Typography>
               <Typography className="dashboard-value">
-                {data.clients.total}
+                {data?.clients?.total || 0}
               </Typography>
             </CardContent>
           </Card>
@@ -135,7 +151,7 @@ export default function Dashboard() {
                 New Clients This Month
               </Typography>
               <Typography className="dashboard-value">
-                {data.clients.new_this_month}
+                {data?.clients?.new_this_month || 0}
               </Typography>
             </CardContent>
           </Card>
@@ -147,7 +163,7 @@ export default function Dashboard() {
                 Active Programs
               </Typography>
               <Typography className="dashboard-value">
-                {data.programs.active}
+                {data?.programs?.active || 0}
               </Typography>
             </CardContent>
           </Card>
@@ -159,7 +175,7 @@ export default function Dashboard() {
                 Total Programs
               </Typography>
               <Typography className="dashboard-value">
-                {data.programs.total}
+                {data?.programs?.total || 0}
               </Typography>
             </CardContent>
           </Card>
@@ -175,7 +191,11 @@ export default function Dashboard() {
                 Enrollments by Status
               </Typography>
               <div className="dashboard-chart-container">
-                <Pie data={enrollmentStatusData} />
+                {enrollmentsByStatus.length > 0 ? (
+                  <Pie data={enrollmentStatusData} />
+                ) : (
+                  <Typography align="center" color="text.secondary">No enrollment status data available</Typography>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -187,18 +207,22 @@ export default function Dashboard() {
                 Enrollments by Program
               </Typography>
               <div className="dashboard-chart-container">
-                <Bar 
-                  data={enrollmentProgramData}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                      y: {
-                        beginAtZero: true
+                {enrollmentsByProgram.length > 0 ? (
+                  <Bar 
+                    data={enrollmentProgramData}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      scales: {
+                        y: {
+                          beginAtZero: true
+                        }
                       }
-                    }
-                  }} 
-                />
+                    }} 
+                  />
+                ) : (
+                  <Typography align="center" color="text.secondary">No enrollment program data available</Typography>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -210,18 +234,22 @@ export default function Dashboard() {
                 Clients by County
               </Typography>
               <div className="dashboard-chart-container">
-                <Bar 
-                  data={clientsByCountyData}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                      y: {
-                        beginAtZero: true
+                {clientsByCounty.length > 0 ? (
+                  <Bar 
+                    data={clientsByCountyData}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      scales: {
+                        y: {
+                          beginAtZero: true
+                        }
                       }
-                    }
-                  }} 
-                />
+                    }} 
+                  />
+                ) : (
+                  <Typography align="center" color="text.secondary">No client county data available</Typography>
+                )}
               </div>
             </CardContent>
           </Card>

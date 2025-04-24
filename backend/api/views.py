@@ -1,9 +1,14 @@
 from rest_framework import viewsets, permissions, status, filters
-from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework.decorators import api_view, permission_classes, action, authentication_classes
 from rest_framework.response import Response
 from django.db.models import Count, Q
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
+from django.contrib.auth import authenticate, login, logout
+from django.middleware.csrf import get_token
+from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
+from django.contrib.auth.models import User
+from django.http import JsonResponse
 
 from health_programs.models import HealthProgram, ProgramCategory
 from clients.models import Client, Enrollment
@@ -13,8 +18,52 @@ from .serializers import (
     ProgramCategorySerializer, 
     EnrollmentSerializer,
     ClientDetailSerializer,
-    EnrollClientSerializer
+    EnrollClientSerializer,
+    UserSerializer
 )
+
+# Authentication views
+@api_view(['POST'])
+@csrf_exempt  # Exempt from CSRF protection for initial login
+@authentication_classes([])  # No authentication required
+@permission_classes([permissions.AllowAny])
+def login_view(request):
+    username = request.data.get('username')
+    password = request.data.get('password')
+    
+    if not username or not password:
+        return Response({
+            'detail': 'Please provide both username and password.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    user = authenticate(request, username=username, password=password)
+    
+    if user is not None:
+        login(request, user)
+        return Response(UserSerializer(user).data)
+    else:
+        return Response({
+            'detail': 'Invalid credentials.'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+
+@api_view(['POST'])
+def logout_view(request):
+    logout(request)
+    return Response({'detail': 'Successfully logged out.'})
+
+@api_view(['GET'])
+@ensure_csrf_cookie
+@permission_classes([permissions.AllowAny])
+def get_csrf_token(request):
+    token = get_token(request)
+    return Response({'csrfToken': token})
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])  # Allow any user to check auth status
+def get_user_info(request):
+    if not request.user.is_authenticated:
+        return Response({'authenticated': False, 'detail': 'Not authenticated'}, status=status.HTTP_200_OK)
+    return Response(UserSerializer(request.user).data)
 
 class ClientViewSet(viewsets.ModelViewSet):
     queryset = Client.objects.all()
