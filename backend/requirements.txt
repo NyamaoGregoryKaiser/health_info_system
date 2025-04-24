@@ -1,0 +1,17 @@
+Django>=4.2.0,<5.0.0
+djangorestframework>=3.14.0,<4.0.0
+django-cors-headers>=4.0.0
+django-filter>=23.0
+drf-yasg>=1.21.0
+python-dotenv>=1.0.0
+whitenoise>=6.5.0
+
+# Database drivers - uncomment based on your configuration
+# psycopg2-binary>=2.9.9  # For PostgreSQL
+# mysqlclient>=2.2.0  # For MySQL
+
+# Pillow for image processing (if needed)
+# Install separately with: pip install Pillow --only-binary :all:
+
+# Production dependencies
+gunicorn>=21.0.0 
