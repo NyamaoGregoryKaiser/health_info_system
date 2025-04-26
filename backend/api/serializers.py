@@ -55,11 +55,27 @@ class ClientDetailSerializer(ClientSerializer):
 class EnrollmentSerializer(serializers.ModelSerializer):
     program_name = serializers.ReadOnlyField(source='program.name')
     program_code = serializers.ReadOnlyField(source='program.code')
+    client_name = serializers.SerializerMethodField()
+    client_id_number = serializers.SerializerMethodField()
     
     class Meta:
         model = Enrollment
-        fields = ['id', 'program', 'program_name', 'program_code', 'enrollment_date', 
+        fields = ['id', 'client', 'client_name', 'client_id_number', 'program', 'program_name', 'program_code', 'enrollment_date', 
                   'is_active', 'notes', 'facility_name', 'mfl_code']
+    
+    def get_client_name(self, obj):
+        return obj.client.get_full_name() if obj.client else None
+    
+    def get_client_id_number(self, obj):
+        return obj.client.id_number if obj.client else None
+
+class EnrollmentUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for updating enrollments, excluding client field which shouldn't change
+    """
+    class Meta:
+        model = Enrollment
+        fields = ['program', 'enrollment_date', 'is_active', 'notes', 'facility_name', 'mfl_code']
 
 class EnrollClientSerializer(serializers.Serializer):
     client_id = serializers.UUIDField()

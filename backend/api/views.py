@@ -17,6 +17,7 @@ from .serializers import (
     HealthProgramSerializer, 
     ProgramCategorySerializer, 
     EnrollmentSerializer,
+    EnrollmentUpdateSerializer,
     ClientDetailSerializer,
     EnrollClientSerializer,
     UserSerializer,
@@ -125,6 +126,11 @@ class ProgramCategoryViewSet(viewsets.ModelViewSet):
 class EnrollmentViewSet(viewsets.ModelViewSet):
     queryset = Enrollment.objects.all()
     serializer_class = EnrollmentSerializer
+    
+    def get_serializer_class(self):
+        if self.action in ['update', 'partial_update']:
+            return EnrollmentUpdateSerializer
+        return EnrollmentSerializer
     
     @action(detail=False, methods=['post'])
     def enroll_client(self, request):

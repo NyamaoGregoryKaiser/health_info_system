@@ -57,7 +57,6 @@ directApi.interceptors.request.use(
 
 const EnrollmentList = () => {
   const [enrollments, setEnrollments] = useState([]);
-  const [clients, setClients] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
@@ -72,69 +71,15 @@ const EnrollmentList = () => {
         setLoading(true);
         console.log('Fetching enrollment data...');
         
-        // Fetch enrollments and clients in parallel
-        const [enrollmentsResponse, clientsResponse] = await Promise.all([
-          directApi.get('/enrollments/'),
-          directApi.get('/clients/')
-        ]);
+        // Fetch enrollments
+        const enrollmentsResponse = await directApi.get('/enrollments/');
         
         // Process enrollments data
         const enrollmentsData = enrollmentsResponse.data?.results || enrollmentsResponse.data || [];
         console.log('Raw enrollments data:', enrollmentsData);
         const processedEnrollments = Array.isArray(enrollmentsData) ? enrollmentsData : [];
         
-        // Process clients data
-        const clientsData = clientsResponse.data?.results || clientsResponse.data || [];
-        console.log('Raw clients data:', clientsData);
-        
-        // Create a map of client IDs to client data for quick lookup
-        const clientsMap = {};
-        if (Array.isArray(clientsData)) {
-          clientsData.forEach(client => {
-            // Store client by both client_id and any numeric id if available
-            if (client.client_id) {
-              clientsMap[client.client_id] = client;
-            }
-            if (client.id) {
-              clientsMap[client.id] = client;
-            }
-          });
-        }
-        
-        setClients(clientsMap);
-        console.log('Clients map:', clientsMap);
-        
-        // Enhance enrollment data with client information if available
-        const enhancedEnrollments = processedEnrollments.map(enrollment => {
-          // Find the client by looking at all possible client ID fields
-          let clientData = null;
-          
-          // Check for the field that contains the client reference (could be client_id or client)
-          const clientRef = enrollment.client_id || enrollment.client;
-          
-          if (clientRef) {
-            console.log('Looking for client with ID:', clientRef);
-            clientData = clientsMap[clientRef];
-          }
-          
-          // If client data was found, enhance the enrollment
-          if (clientData) {
-            console.log('Found client:', clientData.first_name, clientData.last_name);
-            return {
-              ...enrollment,
-              client_data: clientData,
-              client_name: `${clientData.first_name} ${clientData.last_name}`,
-              client_id_number: clientData.id_number
-            };
-          } else {
-            console.log('Client not found for enrollment:', enrollment.id);
-          }
-          
-          return enrollment;
-        });
-        
-        console.log('Enhanced enrollments:', enhancedEnrollments);
-        setEnrollments(enhancedEnrollments);
+        setEnrollments(processedEnrollments);
         setLoading(false);
       } catch (err) {
         setError('Failed to load data');
@@ -242,15 +187,12 @@ const EnrollmentList = () => {
                   </TableHead>
                   <TableBody>
                     {displayedEnrollments.map(enrollment => {
-                      // Find client ID for linking to profile
-                      const clientId = enrollment.client_data?.client_id || enrollment.client;
-                      
                       return (
                         <TableRow key={enrollment.id}>
                           <TableCell>
                             {enrollment.client_name ? (
                               <Link 
-                                to={`/clients/${clientId}`}
+                                to={`/clients/${enrollment.client}`}
                                 style={{ textDecoration: 'none', color: '#0e7c61' }}
                               >
                                 {enrollment.client_name}

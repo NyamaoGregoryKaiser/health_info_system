@@ -6,6 +6,46 @@ import {
 } from '@mui/material';
 import axios from 'axios';
 
+// Create a direct API instance with the correct backend URL
+const directApi = axios.create({
+  baseURL: 'http://localhost:8000/api',
+  headers: { 
+    'Content-Type': 'application/json',
+    'X-CSRFToken': document.cookie.match(/csrftoken=([^;]*)/)?.[1] || ''
+  },
+  withCredentials: true
+});
+
+// Add an interceptor to handle authentication
+directApi.interceptors.request.use(
+  async (config) => {
+    // Get user data from localStorage
+    const userData = localStorage.getItem('userData');
+    const isAuthenticated = localStorage.getItem('isAuthenticated');
+
+    // If authenticated, add token to headers
+    if (isAuthenticated === 'true' && userData) {
+      try {
+        const user = JSON.parse(userData);
+        if (user && user.id) {
+          // Add any additional auth headers if needed
+        }
+      } catch (e) {
+        console.error('Error parsing user data:', e);
+      }
+    }
+
+    // Ensure CSRF token is up to date
+    const csrfToken = document.cookie.match(/csrftoken=([^;]*)/)?.[1];
+    if (csrfToken) {
+      config.headers['X-CSRFToken'] = csrfToken;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 const ClientProfile = () => {
   const [client, setClient] = useState(null);
   const [enrollments, setEnrollments] = useState([]);
@@ -19,12 +59,12 @@ const ClientProfile = () => {
     const fetchClient = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(`/api/clients/${id}/`);
+        const response = await directApi.get(`/clients/${id}/`);
         setClient(response.data);
         
-        // Fetch enrollments for this client
-        const enrollmentsResponse = await axios.get(`/api/enrollments/?client=${id}`);
-        setEnrollments(enrollmentsResponse.data);
+        // Get enrollments from the client data if available
+        const enrollmentsData = response.data.enrollments || [];
+        setEnrollments(Array.isArray(enrollmentsData) ? enrollmentsData : []);
         
         setLoading(false);
       } catch (err) {
