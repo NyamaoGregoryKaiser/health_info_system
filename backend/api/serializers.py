@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from health_programs.models import HealthProgram, ProgramCategory
 from clients.models import Client, Enrollment
+from django.db import transaction
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -92,3 +93,55 @@ class EnrollClientSerializer(serializers.Serializer):
             enrollment.save()
             
         return enrollment 
+
+class ClientRegistrationSerializer(serializers.Serializer):
+    # User account fields
+    username = serializers.CharField(required=True)
+    password = serializers.CharField(required=True, write_only=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    
+    # Client personal info
+    first_name = serializers.CharField(required=True)
+    last_name = serializers.CharField(required=True)
+    date_of_birth = serializers.DateField(required=True)
+    gender = serializers.ChoiceField(choices=['Male', 'Female', 'Other'], required=True)
+    national_id = serializers.CharField(required=True)
+    phone_number = serializers.CharField(required=True)
+    address = serializers.CharField(required=False, allow_blank=True)
+    
+    # Emergency contact
+    emergency_contact_name = serializers.CharField(required=False, allow_blank=True)
+    emergency_contact_phone = serializers.CharField(required=False, allow_blank=True)
+    
+    @transaction.atomic
+    def create(self, validated_data):
+        # Create user account
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            password=validated_data['password'],
+            email=validated_data.get('email', ''),
+            first_name=validated_data['first_name'],
+            last_name=validated_data['last_name']
+        )
+        
+        # Map gender to single letter code for Client model
+        gender_map = {
+            'Male': 'M',
+            'Female': 'F',
+            'Other': 'O'
+        }
+        
+        # Create client profile
+        client = Client.objects.create(
+            first_name=validated_data['first_name'],
+            last_name=validated_data['last_name'],
+            id_number=validated_data['national_id'],
+            date_of_birth=validated_data['date_of_birth'],
+            gender=gender_map[validated_data['gender']],
+            phone_number=validated_data['phone_number'],
+            email=validated_data.get('email', ''),
+            county=validated_data.get('address', '').split(',')[0] if validated_data.get('address') else 'Unknown',
+            sub_county=validated_data.get('address', '').split(',')[1] if validated_data.get('address') and ',' in validated_data.get('address') else 'Unknown',
+        )
+        
+        return client 

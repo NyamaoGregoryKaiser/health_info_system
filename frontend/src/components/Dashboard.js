@@ -10,7 +10,7 @@ import {
 } from '@mui/material';
 import { Bar, Pie } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
-import programService from '../services/programService';
+import { dashboardService } from '../services/apiServices';
 
 // Register ChartJS components
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
@@ -23,7 +23,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const data = await programService.getDashboardData();
+        const data = await dashboardService.getDashboardSummary();
         // Ensure we have valid data
         if (data && typeof data === 'object') {
           setDashboardData(data);

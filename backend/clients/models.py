@@ -25,7 +25,7 @@ class Client(models.Model):
     phone_number = models.CharField(max_length=15, null=True, blank=True)
     email = models.EmailField(null=True, blank=True)
     
-    # Kenya-specific fields
+    # Afya Yetu-specific fields
     county = models.CharField(max_length=50)
     sub_county = models.CharField(max_length=50)
     ward = models.CharField(max_length=50, null=True, blank=True)
@@ -61,7 +61,7 @@ class Enrollment(models.Model):
     is_active = models.BooleanField(default=True)
     notes = models.TextField(null=True, blank=True)
     
-    # Additional Kenya-specific program data
+    # Additional Afya Yetu-specific program data
     facility_name = models.CharField(max_length=100, null=True, blank=True)
     mfl_code = models.CharField(max_length=10, null=True, blank=True, help_text="Master Facility List Code")
     

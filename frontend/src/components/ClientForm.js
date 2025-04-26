@@ -10,6 +10,46 @@ import * as Yup from 'yup';
 import axios from 'axios';
 import dayjs from 'dayjs';
 
+// Create a direct API instance with the correct backend URL
+const directApi = axios.create({
+  baseURL: 'http://localhost:8000/api',
+  headers: { 
+    'Content-Type': 'application/json',
+    'X-CSRFToken': document.cookie.match(/csrftoken=([^;]*)/)?.[1] || ''
+  },
+  withCredentials: true
+});
+
+// Add an interceptor to handle authentication
+directApi.interceptors.request.use(
+  async (config) => {
+    // Get user data from localStorage
+    const userData = localStorage.getItem('userData');
+    const isAuthenticated = localStorage.getItem('isAuthenticated');
+
+    // If authenticated, add token to headers
+    if (isAuthenticated === 'true' && userData) {
+      try {
+        const user = JSON.parse(userData);
+        if (user && user.id) {
+          // Add any additional auth headers if needed
+        }
+      } catch (e) {
+        console.error('Error parsing user data:', e);
+      }
+    }
+
+    // Ensure CSRF token is up to date
+    const csrfToken = document.cookie.match(/csrftoken=([^;]*)/)?.[1];
+    if (csrfToken) {
+      config.headers['X-CSRFToken'] = csrfToken;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 const validationSchema = Yup.object({
   first_name: Yup.string().required('First name is required'),
   last_name: Yup.string().required('Last name is required'),
@@ -52,7 +92,7 @@ const ClientForm = () => {
     if (id) {
       const fetchClient = async () => {
         try {
-          const response = await axios.get(`/api/clients/${id}/`);
+          const response = await directApi.get(`/clients/${id}/`);
           const clientData = response.data;
           
           setClient({
@@ -80,9 +120,9 @@ const ClientForm = () => {
       };
       
       if (isEditMode) {
-        await axios.put(`/api/clients/${id}/`, formattedValues);
+        await directApi.put(`/clients/${id}/`, formattedValues);
       } else {
-        await axios.post('/api/clients/', formattedValues);
+        await directApi.post('/clients/', formattedValues);
       }
       
       navigate('/clients');

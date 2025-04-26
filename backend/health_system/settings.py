@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     
     # Third-party apps
     'rest_framework',
+    'rest_framework.authtoken',  # Add token authentication
     'corsheaders',
     'django_filters',
     'drf_yasg',
@@ -70,27 +71,28 @@ WSGI_APPLICATION = 'health_system.wsgi.application'
 
 # Database
 # SQLite configuration for development
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-
-# MySQL configuration (uncomment for MySQL)
 # DATABASES = {
 #     'default': {
-#         'ENGINE': 'django.db.backends.mysql',
-#         'NAME': 'kenya_health_system',
-#         'USER': 'healthuser',
-#         'PASSWORD': 'healthpass',
-#         'HOST': 'localhost',
-#         'PORT': '3306',
-#         'OPTIONS': {
-#             'charset': 'utf8mb4',
-#         },
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
 #     }
 # }
+
+# MySQL configuration for WAMP Server
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'afya_yetu_health_system',
+        'USER': 'root',           # Default WAMP MySQL username
+        'PASSWORD': '',           # Default WAMP MySQL password (empty)
+        'HOST': 'localhost',      # Or 127.0.0.1
+        'PORT': '3306',           # Default MySQL port in WAMP
+        'OPTIONS': {
+            'charset': 'utf8mb4',
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"
+        },
+    }
+}
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -110,7 +112,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'Africa/Nairobi'  # Setting timezone to Kenya's timezone
+TIME_ZONE = 'Africa/Nairobi'  # Setting timezone for Afya Yetu
 USE_I18N = True
 USE_TZ = True
 
@@ -130,6 +132,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',  # Add token authentication
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.BasicAuthentication',
     ],
@@ -147,6 +150,25 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
 ]
 CORS_ALLOW_CREDENTIALS = True  # Enable credentials for cross-origin requests
+CORS_ALLOW_METHODS = [  # Specify allowed methods
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+CORS_ALLOW_HEADERS = [  # Specify allowed headers
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 # CSRF settings
 CSRF_TRUSTED_ORIGINS = [

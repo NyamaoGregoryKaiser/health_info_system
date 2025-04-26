@@ -1,9 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from rest_framework.authtoken.views import obtain_auth_token
 from .views import (
     HealthProgramViewSet, ClientViewSet, EnrollmentViewSet, 
     ProgramCategoryViewSet, login_view, logout_view, 
-    get_csrf_token, get_user_info, dashboard_summary
+    get_csrf_token, get_user_info, dashboard_summary,
+    register_client, program_search, client_search
 )
 
 router = DefaultRouter()
@@ -21,6 +23,16 @@ urlpatterns = [
     path('auth/user/', get_user_info, name='user_info'),
     path('csrf-token/', get_csrf_token, name='get_csrf'),
     
+    # Registration endpoint
+    path('clients/register/', register_client, name='register_client'),
+    
+    # Token authentication
+    path('auth/token/', obtain_auth_token, name='api_token_auth'),
+    
     # Dashboard data
     path('dashboard/', dashboard_summary, name='dashboard_summary'),
+    
+    # Search endpoints
+    path('programs/search/', program_search, name='program_search'),
+    path('clients/search/', client_search, name='client_search'),
 ] 

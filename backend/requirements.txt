@@ -8,7 +8,7 @@ whitenoise>=6.5.0
 
 # Database drivers - uncomment based on your configuration
 # psycopg2-binary>=2.9.9  # For PostgreSQL
-# mysqlclient>=2.2.0  # For MySQL
+mysqlclient>=2.2.0  # For MySQL
 
 # Pillow for image processing (if needed)
 # Install separately with: pip install Pillow --only-binary :all:

@@ -19,7 +19,8 @@ from .serializers import (
     EnrollmentSerializer,
     ClientDetailSerializer,
     EnrollClientSerializer,
-    UserSerializer
+    UserSerializer,
+    ClientRegistrationSerializer
 )
 
 # Authentication views
@@ -40,16 +41,24 @@ def login_view(request):
     
     if user is not None:
         login(request, user)
-        return Response(UserSerializer(user).data)
+        # Return user data with a success indicator
+        user_data = UserSerializer(user).data
+        user_data['success'] = True
+        return Response(user_data)
     else:
         return Response({
-            'detail': 'Invalid credentials.'
+            'success': False,
+            'detail': 'Invalid credentials. Please check your username and password.'
         }, status=status.HTTP_401_UNAUTHORIZED)
 
 @api_view(['POST'])
 def logout_view(request):
-    logout(request)
-    return Response({'detail': 'Successfully logged out.'})
+    if request.user.is_authenticated:
+        logout(request)
+        return Response({'success': True, 'detail': 'Successfully logged out.'})
+    else:
+        return Response({'success': False, 'detail': 'You are not logged in.'}, 
+                        status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 @ensure_csrf_cookie
@@ -142,52 +151,67 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
 @permission_classes([permissions.IsAuthenticated])
 def dashboard_summary(request):
     """
-    Get summary data for dashboard
+    Get a summary of dashboard data - active programs, clients, enrollments, etc.
     """
+    from django.db.models import Count
+    from django.db.models.functions import TruncMonth
+    import datetime
+    
+    # Get current date
     today = timezone.now().date()
+    month_ago = today - datetime.timedelta(days=30)
     
-    # Clients statistics
+    # Count clients
     total_clients = Client.objects.count()
-    new_clients_month = Client.objects.filter(
-        created_at__month=today.month,
-        created_at__year=today.year
-    ).count()
+    new_clients = Client.objects.filter(created_at__gte=month_ago).count()
     
-    # Programs statistics
-    active_programs = HealthProgram.objects.filter(
-        start_date__lte=today,
-        end_date__gte=today
-    ).count()
+    # Count programs
+    total_programs = HealthProgram.objects.count()
+    active_programs = sum(1 for p in HealthProgram.objects.all() if p.is_active)
     
-    # Enrollments by status
-    enrollments_by_status = Enrollment.objects.values('status').annotate(
-        count=Count('id')
-    )
+    # Enrollment stats
+    enrollments_by_status = [
+        {'status': 'Active', 'count': Enrollment.objects.filter(is_active=True).count()},
+        {'status': 'Inactive', 'count': Enrollment.objects.filter(is_active=False).count()}
+    ]
     
-    # Enrollments by program
-    enrollments_by_program = Enrollment.objects.values(
-        'program__name'
-    ).annotate(count=Count('id'))
+    # Get top programs by enrollment
+    enrollments_by_program = []
+    for program in HealthProgram.objects.all():
+        count = Enrollment.objects.filter(program=program).count()
+        if count > 0:
+            enrollments_by_program.append({
+                'id': program.id,
+                'name': program.name,
+                'count': count
+            })
     
-    # Clients by county
-    clients_by_county = Client.objects.values('county').annotate(
-        count=Count('id')
-    )
+    # Sort by count, descending
+    enrollments_by_program.sort(key=lambda x: x['count'], reverse=True)
+    
+    # Get clients by county
+    clients_by_county = []
+    counties = Client.objects.values('county').annotate(count=Count('county')).order_by('-count')
+    for county in counties:
+        clients_by_county.append({
+            'county': county['county'],
+            'count': county['count']
+        })
     
     return Response({
         'clients': {
             'total': total_clients,
-            'new_this_month': new_clients_month,
+            'new_this_month': new_clients
         },
         'programs': {
-            'active': active_programs,
-            'total': HealthProgram.objects.count(),
+            'total': total_programs,
+            'active': active_programs
         },
         'enrollments': {
             'by_status': enrollments_by_status,
-            'by_program': enrollments_by_program,
+            'by_program': enrollments_by_program[:5]  # Top 5 programs
         },
-        'clients_by_county': clients_by_county,
+        'clients_by_county': clients_by_county
     })
 
 @api_view(['GET'])
@@ -203,8 +227,9 @@ def client_search(request):
     clients = Client.objects.filter(
         Q(first_name__icontains=query) | 
         Q(last_name__icontains=query) | 
-        Q(national_id__icontains=query) | 
-        Q(phone_number__icontains=query)
+        Q(id_number__icontains=query) |
+        Q(phone_number__icontains=query) |
+        Q(email__icontains=query)
     )
     
     serializer = ClientSerializer(clients, many=True)
@@ -223,8 +248,37 @@ def program_search(request):
     programs = HealthProgram.objects.filter(
         Q(name__icontains=query) | 
         Q(description__icontains=query) | 
-        Q(location__icontains=query)
+        Q(location__icontains=query) |
+        Q(code__icontains=query)
     )
     
     serializer = HealthProgramSerializer(programs, many=True)
-    return Response({'results': serializer.data}) 
+    return Response({'results': serializer.data})
+
+@api_view(['POST'])
+@authentication_classes([])  # No authentication required
+@permission_classes([permissions.AllowAny])
+def register_client(request):
+    """
+    Register a new client with a user account
+    """
+    serializer = ClientRegistrationSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        try:
+            client = serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Registration successful.',
+                'client_id': client.client_id,
+            }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'detail': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    return Response({
+        'success': False,
+        'detail': serializer.errors
+    }, status=status.HTTP_400_BAD_REQUEST) 

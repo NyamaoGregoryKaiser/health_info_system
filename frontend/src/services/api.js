@@ -28,9 +28,20 @@ const getCSRFToken = () => {
 axios.defaults.withCredentials = true;
 axios.defaults.headers.common['Content-Type'] = 'application/json';
 
+// Function to request a CSRF token before making authenticated requests
+export const fetchCSRFToken = async () => {
+  try {
+    const response = await api.get('/csrf-token/');
+    return response.data.csrfToken;
+  } catch (error) {
+    console.error('Failed to fetch CSRF token:', error);
+    return null;
+  }
+};
+
 // Intercept requests to handle auth tokens if needed
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     // Log the request for debugging
     console.log('API Request:', config.method, config.url);
     
@@ -41,16 +52,30 @@ api.interceptors.request.use(
     
     // Add CSRF token to non-GET requests
     if (config.method !== 'get') {
-      const csrfToken = getCSRFToken();
+      // First try to get from cookie
+      let csrfToken = getCSRFToken();
+      
+      // If not available in cookie, fetch from endpoint
+      if (!csrfToken && config.url !== '/csrf-token/') {
+        console.log('No CSRF token found in cookies, fetching from endpoint...');
+        try {
+          csrfToken = await fetchCSRFToken();
+        } catch (error) {
+          console.error('Error fetching CSRF token:', error);
+        }
+      }
+      
       if (csrfToken) {
         config.headers['X-CSRFToken'] = csrfToken;
+      } else {
+        console.warn('No CSRF token available for request:', config.url);
       }
     }
     
-    // Add authentication token if available
+    // Add auth token if available (for token auth)
     const token = localStorage.getItem('token');
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers['Authorization'] = `Token ${token}`;
     }
     
     return config;
@@ -70,8 +95,13 @@ api.interceptors.response.use(
     
     // Handle 401 Unauthorized errors (e.g., redirect to login)
     if (error.response && error.response.status === 401) {
-      // Reload the page to go to login if needed
-      window.location.href = '/login';
+      // Only redirect if not already on auth-related pages
+      const currentPath = window.location.pathname;
+      if (!currentPath.includes('/login') && !currentPath.includes('/register')) {
+        // Redirect to login
+        localStorage.removeItem('isAuthenticated');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

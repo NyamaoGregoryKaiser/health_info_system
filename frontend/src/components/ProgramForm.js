@@ -10,6 +10,46 @@ import * as Yup from 'yup';
 import axios from 'axios';
 import dayjs from 'dayjs';
 
+// Create a direct API instance with the correct backend URL
+const directApi = axios.create({
+  baseURL: 'http://localhost:8000/api',
+  headers: { 
+    'Content-Type': 'application/json',
+    'X-CSRFToken': document.cookie.match(/csrftoken=([^;]*)/)?.[1] || ''
+  },
+  withCredentials: true
+});
+
+// Add an interceptor to handle authentication
+directApi.interceptors.request.use(
+  async (config) => {
+    // Get user data from localStorage
+    const userData = localStorage.getItem('userData');
+    const isAuthenticated = localStorage.getItem('isAuthenticated');
+
+    // If authenticated, add token to headers
+    if (isAuthenticated === 'true' && userData) {
+      try {
+        const user = JSON.parse(userData);
+        if (user && user.id) {
+          // Add any additional auth headers if needed
+        }
+      } catch (e) {
+        console.error('Error parsing user data:', e);
+      }
+    }
+
+    // Ensure CSRF token is up to date
+    const csrfToken = document.cookie.match(/csrftoken=([^;]*)/)?.[1];
+    if (csrfToken) {
+      config.headers['X-CSRFToken'] = csrfToken;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 const validationSchema = Yup.object({
   name: Yup.string().required('Program name is required'),
   description: Yup.string().required('Description is required'),
@@ -49,18 +89,30 @@ const ProgramForm = () => {
         setLoading(true);
         
         // Fetch categories first
-        const categoriesResponse = await axios.get('/api/program-categories/');
-        setCategories(categoriesResponse.data);
+        const categoriesResponse = await directApi.get('/program-categories/');
+        // Ensure categories is always an array
+        const categoriesData = categoriesResponse.data?.results || categoriesResponse.data || [];
+        setCategories(Array.isArray(categoriesData) ? categoriesData : []);
         
         // If editing, fetch program details
         if (id) {
-          const programResponse = await axios.get(`/api/programs/${id}/`);
+          const programResponse = await directApi.get(`/programs/${id}/`);
           const programData = programResponse.data;
+          
+          // Find the matching category object
+          let categoryValue = '';
+          if (programData.category_id) {
+            categoryValue = programData.category_id;
+          } else if (programData.category) {
+            categoryValue = typeof programData.category === 'object' ? 
+              programData.category.id : programData.category;
+          }
           
           setProgram({
             ...programData,
             start_date: dayjs(programData.start_date),
-            end_date: programData.end_date ? dayjs(programData.end_date) : null
+            end_date: programData.end_date ? dayjs(programData.end_date) : null,
+            category: categoryValue
           });
         }
         
@@ -77,23 +129,59 @@ const ProgramForm = () => {
 
   const handleSubmit = async (values, { setSubmitting, setStatus }) => {
     try {
+      // Get the selected category ID
+      const categoryId = parseInt(values.category, 10);
+      
+      // Create formatted values with the correct field structure
       const formattedValues = {
-        ...values,
+        name: values.name,
+        description: values.description,
+        code: values.code,
         start_date: values.start_date.format('YYYY-MM-DD'),
         end_date: values.end_date ? values.end_date.format('YYYY-MM-DD') : null,
-        capacity: values.capacity === '' ? null : parseInt(values.capacity, 10)
+        eligibility_criteria: values.eligibility_criteria || '',
+        capacity: values.capacity === '' ? null : parseInt(values.capacity, 10),
+        location: values.location,
+        category_id: categoryId
       };
       
+      // Log the data being sent
+      console.log('Sending program data:', formattedValues);
+      
       if (isEditMode) {
-        await axios.put(`/api/programs/${id}/`, formattedValues);
+        await directApi.put(`/programs/${id}/`, formattedValues);
       } else {
-        await axios.post('/api/programs/', formattedValues);
+        try {
+          const response = await directApi.post('/programs/', formattedValues);
+          console.log('Success response:', response.data);
+        } catch (postError) {
+          // Log more detailed error information
+          console.error('Error response status:', postError.response?.status);
+          console.error('Error response data:', postError.response?.data);
+          console.error('Request data that caused error:', formattedValues);
+          throw postError;
+        }
       }
       
       navigate('/programs');
     } catch (err) {
-      setStatus({ error: 'Failed to save program information' });
-      console.error(err);
+      let errorMsg = 'Unknown error';
+      
+      if (err.response?.data) {
+        // Format the error message in a more readable way
+        if (typeof err.response.data === 'object') {
+          errorMsg = Object.entries(err.response.data)
+            .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
+            .join('; ');
+        } else {
+          errorMsg = String(err.response.data);
+        }
+      } else if (err.message) {
+        errorMsg = err.message;
+      }
+      
+      setStatus({ error: `Failed to save program information: ${errorMsg}` });
+      console.error('Full error:', err);
     } finally {
       setSubmitting(false);
     }

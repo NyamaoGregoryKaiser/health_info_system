@@ -1,6 +1,6 @@
-# Kenya Health Information System
+# Afya Yetu Health Information System
 
-A comprehensive system for managing health programs and beneficiaries in Kenya. This system helps track clients, health programs, and enrollments to facilitate better health service delivery.
+A comprehensive system for managing health programs and beneficiaries through Afya Yetu. This system helps track clients, health programs, and enrollments to facilitate better health service delivery.
 
 ## Features
 
@@ -15,7 +15,7 @@ A comprehensive system for managing health programs and beneficiaries in Kenya. 
 ### Backend
 - Django (Python web framework)
 - Django REST Framework (API)
-- SQLite (Development) / PostgreSQL (Production)
+- MySQL Database (via WAMP Server)
 
 ### Frontend
 - React (JavaScript library)
@@ -29,44 +29,52 @@ A comprehensive system for managing health programs and beneficiaries in Kenya. 
 - Python 3.8+
 - Node.js 14+
 - npm or yarn
+- WAMP Server (with MySQL)
 
 ### Backend Setup
 
-1. Navigate to the backend directory:
+1. Make sure WAMP Server is installed and running with MySQL service active
+
+2. Navigate to the backend directory:
    ```
    cd backend
    ```
 
-2. Create a virtual environment and activate it:
+3. Create a virtual environment and activate it:
    ```
    # On Windows:
    python -m venv venv
    venv\Scripts\activate
-   
-   # On macOS/Linux:
-   python3 -m venv venv
-   source venv/bin/activate
    ```
 
-3. Install dependencies:
+4. Install dependencies:
    ```
    pip install -r requirements.txt
    ```
    
-   **Note for Windows users**: If you plan to use PostgreSQL later and encounter issues with `psycopg2-binary`, you can:
-   - Edit the requirements.txt file to uncomment the appropriate line
-   - Install PostgreSQL and make sure its bin directory is in your PATH
-   - Or simply use SQLite for development (default configuration)
+   **Note**: If you encounter issues with `mysqlclient` installation on Windows:
+   - Download the appropriate MySQL Connector wheel file from https://www.lfd.uci.edu/~gohlke/pythonlibs/#mysqlclient
+   - Install it using: `pip install C:\path\to\downloaded\wheel\file.whl`
 
-4. Run migrations:
+5. Set up MySQL Database using WAMP:
+   
+   Run the setup script:
    ```
-   python manage.py migrate
+   python setup_mysql.py
    ```
-
-5. Create a superuser:
-   ```
-   python manage.py createsuperuser
-   ```
+   
+   This will:
+   - Create the MySQL database in your WAMP installation
+   - Update the Django settings with your WAMP MySQL credentials
+   - Apply Django migrations
+   - Optionally load sample data
+   - Optionally create a superuser
+   
+   **Alternative**: You can also set up the database manually using phpMyAdmin:
+   - Open phpMyAdmin from your WAMP dashboard
+   - Create a new database named `afya_yetu_health_system`
+   - Update settings.py with your database credentials
+   - Run migrations with `python manage.py migrate`
 
 6. Start the development server:
    ```
@@ -99,11 +107,22 @@ A comprehensive system for managing health programs and beneficiaries in Kenya. 
 ### Backend Development
 - API documentation is available at `/swagger/` when the backend server is running
 - Admin interface is available at `/admin/`
-- By default, the system uses SQLite for development. For PostgreSQL, edit the settings.py file
+- The system uses MySQL via WAMP for data storage
 
 ### Frontend Development
 - The React development server will be available at `http://localhost:3000`
 - The proxy is configured to forward API requests to the Django backend
+
+## Sample Users
+
+If you choose to load the sample data, the system will include these predefined users for testing:
+
+| Username | Password | Role |
+|----------|----------|------|
+| admin | password123 | Administrator |
+| receptionist | password123 | Data Entry |
+| nurse1 | password123 | Health Officer |
+| officermanager | password123 | Health Officer |
 
 ## License
 

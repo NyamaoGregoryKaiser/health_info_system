@@ -10,6 +10,47 @@ import {
   Info as InfoIcon
 } from '@mui/icons-material';
 import axios from 'axios';
+import { toast } from 'react-hot-toast';
+
+// Create a direct API instance with the correct backend URL
+const directApi = axios.create({
+  baseURL: 'http://localhost:8000/api',
+  headers: { 
+    'Content-Type': 'application/json',
+    'X-CSRFToken': document.cookie.match(/csrftoken=([^;]*)/)?.[1] || ''
+  },
+  withCredentials: true
+});
+
+// Add an interceptor to handle authentication
+directApi.interceptors.request.use(
+  async (config) => {
+    // Get user data from localStorage
+    const userData = localStorage.getItem('userData');
+    const isAuthenticated = localStorage.getItem('isAuthenticated');
+
+    // If authenticated, add token to headers
+    if (isAuthenticated === 'true' && userData) {
+      try {
+        const user = JSON.parse(userData);
+        if (user && user.id) {
+          // Add any additional auth headers if needed
+        }
+      } catch (e) {
+        console.error('Error parsing user data:', e);
+      }
+    }
+
+    // Ensure CSRF token is up to date
+    const csrfToken = document.cookie.match(/csrftoken=([^;]*)/)?.[1];
+    if (csrfToken) {
+      config.headers['X-CSRFToken'] = csrfToken;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 const ProgramList = () => {
   const [programs, setPrograms] = useState([]);
@@ -22,12 +63,12 @@ const ProgramList = () => {
     const fetchPrograms = async () => {
       try {
         setLoading(true);
-        const programsResponse = await axios.get('/api/programs/');
+        const programsResponse = await directApi.get('/programs/');
         // Make sure we have an array, even if the response is different
         const programsData = programsResponse.data?.results || programsResponse.data || [];
         setPrograms(Array.isArray(programsData) ? programsData : []);
         
-        const categoriesResponse = await axios.get('/api/program-categories/');
+        const categoriesResponse = await directApi.get('/program-categories/');
         const categoriesData = categoriesResponse.data?.results || categoriesResponse.data || [];
         setCategories(Array.isArray(categoriesData) ? categoriesData : []);
         

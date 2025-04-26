@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -31,7 +31,7 @@ import {
   Search as SearchIcon,
   Visibility as ViewIcon
 } from '@mui/icons-material';
-import clientService from '../services/clientService';
+import { clientService } from '../services/apiServices';
 
 export default function ClientList() {
   const [clients, setClients] = useState([]);
@@ -49,14 +49,11 @@ export default function ClientList() {
   
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchClients();
-  }, [countyFilter]);
-
-  const fetchClients = async () => {
+  // Use useCallback to memoize the fetchClients function
+  const fetchClients = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await clientService.getClients({ county: countyFilter });
+      const response = await clientService.getAllClients();
       // Ensure clients is always an array
       const clientsData = response?.results || response || [];
       setClients(Array.isArray(clientsData) ? clientsData : []);
@@ -73,7 +70,11 @@ export default function ClientList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchClients();
+  }, [fetchClients, countyFilter]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {

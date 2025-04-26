@@ -1,6 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import axios from 'axios';
-import api from './api';
+import { authService } from './apiServices';
 
 const AuthContext = createContext(null);
 
@@ -8,61 +7,100 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
 
   // Function to check if user is authenticated
   const checkAuth = async () => {
     try {
-      // Access the API endpoint directly without the auth prefix
-      const response = await api.get('/auth/user/');
+      console.log('Checking authentication status...');
       
-      if (!response.data || Object.keys(response.data).length === 0) {
-        console.warn('Empty user data received from server');
-        setUser(null);
-        setIsAuthenticated(false);
-        localStorage.removeItem('token');
-        localStorage.removeItem('isAuthenticated');
-        return false;
+      // Check if we have authentication in localStorage
+      if (localStorage.getItem('isAuthenticated') === 'true') {
+        const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+        
+        if (userData && Object.keys(userData).length > 0) {
+          console.log('Auth response from localStorage:', userData);
+          setUser(userData);
+          setIsAuthenticated(true);
+          setLoading(false);
+          return true;
+        }
       }
       
-      console.log('Auth response:', response.data);
-      setUser(response.data);
-      setIsAuthenticated(true);
-      return true;
+      // If localStorage check failed, try the service
+      try {
+        const userData = await authService.getUserInfo();
+        
+        if (!userData || Object.keys(userData).length === 0) {
+          console.warn('Empty user data received from server');
+          setUser(null);
+          setIsAuthenticated(false);
+          localStorage.removeItem('token');
+          localStorage.removeItem('isAuthenticated');
+          localStorage.removeItem('userData');
+          setLoading(false);
+          return false;
+        }
+        
+        console.log('Auth response from API:', userData);
+        setUser(userData);
+        setIsAuthenticated(true);
+        // Update localStorage with the latest data
+        localStorage.setItem('isAuthenticated', 'true');
+        localStorage.setItem('userData', JSON.stringify(userData));
+        setLoading(false);
+        return true;
+      } catch (apiError) {
+        console.warn('API auth check failed:', apiError);
+        // Continue with local data if API check fails
+      }
+      
+      setLoading(false);
+      return false;
     } catch (error) {
       console.log('Not authenticated or server error', error);
       setUser(null);
       setIsAuthenticated(false);
       localStorage.removeItem('token');
       localStorage.removeItem('isAuthenticated');
-      return false;
-    } finally {
+      localStorage.removeItem('userData');
       setLoading(false);
+      return false;
     }
   };
 
   useEffect(() => {
     // Check if user is already logged in when app loads
-    checkAuth();
+    const checkAuthOnLoad = async () => {
+      if (localStorage.getItem('isAuthenticated') === 'true') {
+        await checkAuth();
+      } else {
+        setLoading(false);
+      }
+    };
+    
+    checkAuthOnLoad();
   }, []);
 
   // Authenticate user and store token
-  const login = async (credentials) => {
+  const login = async (username, password) => {
     try {
-      setIsLoading(true);
-      const response = await api.post('/auth/login/', credentials);
+      console.log('Attempting login with username:', username);
       
-      if (response.data && response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('isAuthenticated', 'true');
-        
+      // Use the auth service for login
+      const userData = await authService.login(username, password);
+      
+      if (userData && userData.success) {
+        console.log('Login successful:', userData);
         setIsAuthenticated(true);
         
-        // Fetch user data immediately after successful login
-        const userData = await checkAuth();
+        // Update user data
+        setUser(userData.user);
         
-        // Return success with user data
-        return { success: true, user: userData };
+        // Store authentication state for app refresh
+        localStorage.setItem('isAuthenticated', 'true');
+        localStorage.setItem('userData', JSON.stringify(userData.user));
+        
+        return { success: true, user: userData.user };
       } else {
         throw new Error('Invalid response from server');
       }
@@ -77,24 +115,19 @@ export const AuthProvider = ({ children }) => {
       // Clear any partial auth data
       setIsAuthenticated(false);
       setUser(null);
-      localStorage.removeItem('token');
       localStorage.removeItem('isAuthenticated');
       
-      return { success: false, error: errorMessage };
-    } finally {
-      setIsLoading(false);
+      return { success: false, message: errorMessage };
     }
   };
 
   // Logout user and clear stored data
   const logout = async () => {
     try {
-      setIsLoading(true);
-      
       // Call logout endpoint if user is authenticated
       if (isAuthenticated) {
         try {
-          await api.post('/auth/logout/');
+          await authService.logout();
         } catch (logoutError) {
           console.warn('Logout API call failed:', logoutError);
           // Continue with local logout even if API call fails
@@ -108,52 +141,19 @@ export const AuthProvider = ({ children }) => {
       // Remove stored tokens
       localStorage.removeItem('token');
       localStorage.removeItem('isAuthenticated');
+      localStorage.removeItem('userData');
       
-      // Redirect user to login page
-      window.location.href = '/login';
+      // Redirect user to landing page
+      window.location.href = '/';
       
       return { success: true };
     } catch (error) {
       console.error('Logout error:', error);
       
       // Still redirect even if there was an error
-      window.location.href = '/login';
+      window.location.href = '/';
       
       return { success: false, error: error.message || 'Logout failed' };
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Development login helper - only works in development mode
-  const devLogin = async (userData = { username: 'testuser', is_staff: true }) => {
-    // Only allow in development environment
-    if (process.env.NODE_ENV !== 'development') {
-      console.error('Dev login is only available in development mode');
-      return false;
-    }
-
-    try {
-      setIsLoading(true);
-      console.log('Development login activated with user:', userData);
-      
-      // Mock successful login
-      setUser(userData);
-      setIsAuthenticated(true);
-      
-      // Store authentication state
-      localStorage.setItem('isAuthenticated', 'true');
-      
-      // Mock token for development
-      const mockToken = 'dev-mock-token-' + Date.now();
-      localStorage.setItem('token', mockToken);
-      
-      return true;
-    } catch (error) {
-      console.error('Development login error:', error);
-      return false;
-    } finally {
-      setIsLoading(false);
     }
   };
 

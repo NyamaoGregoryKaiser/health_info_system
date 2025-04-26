@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { useNavigate, Navigate, Link } from 'react-router-dom';
 import { 
-  Box, Button, Card, CardContent, TextField, Typography, 
-  Alert, Container, Paper, CircularProgress
+  Box, Button, TextField, Typography, 
+  Alert, Container, Paper, CircularProgress, IconButton
 } from '@mui/material';
-import { LockOutlined as LockOutlinedIcon } from '@mui/icons-material';
+import { 
+  LockOutlined as LockOutlinedIcon,
+  ArrowBack as ArrowBackIcon 
+} from '@mui/icons-material';
 import { useAuth } from '../services/auth';
-import axios from 'axios';
 
 const Login = () => {
   const [username, setUsername] = useState('');
@@ -23,7 +25,8 @@ const Login = () => {
       try {
         const isAuth = await checkAuth();
         if (isAuth) {
-          navigate('/');
+          // If authenticated, navigate to dashboard instead of home
+          navigate('/dashboard');
         }
       } catch (err) {
         console.error("Error verifying authentication:", err);
@@ -31,11 +34,11 @@ const Login = () => {
     };
     
     verifyAuth();
-  }, []);
+  }, [navigate, checkAuth]);
 
   // If already authenticated, redirect to dashboard
   if (isAuthenticated) {
-    return <Navigate to="/" />;
+    return <Navigate to="/dashboard" />;
   }
 
   const handleSubmit = async (e) => {
@@ -59,7 +62,8 @@ const Login = () => {
       const result = await login(username, password);
       
       if (result.success) {
-        navigate('/');
+        // Navigate to dashboard after successful login
+        navigate('/dashboard');
       } else {
         setError(result.message);
       }
@@ -72,15 +76,17 @@ const Login = () => {
   };
 
   return (
-    <Container component="main" maxWidth="xs">
-      <Box
-        sx={{
-          marginTop: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
-      >
+    <Box
+      sx={{
+        minHeight: '100vh',
+        background: 'linear-gradient(45deg, #0e7c61 30%, #3AB795 90%)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Container component="main" maxWidth="xs">
         <Paper
           elevation={3}
           sx={{
@@ -89,8 +95,20 @@ const Login = () => {
             flexDirection: 'column',
             alignItems: 'center',
             width: '100%',
+            borderRadius: 2,
+            background: 'rgba(255, 255, 255, 0.95)',
+            position: 'relative'
           }}
         >
+          <Box sx={{ position: 'absolute', top: 10, left: 10 }}>
+            <IconButton
+              onClick={() => navigate('/')}
+              aria-label="back to home"
+            >
+              <ArrowBackIcon />
+            </IconButton>
+          </Box>
+          
           <Box
             sx={{
               bgcolor: 'primary.main',
@@ -108,7 +126,7 @@ const Login = () => {
           </Box>
           
           <Typography component="h1" variant="h5" gutterBottom>
-            Kenya Health System
+            Afya Yetu Health System
           </Typography>
           
           <Typography component="h2" variant="h6" gutterBottom>
@@ -154,13 +172,13 @@ const Login = () => {
             
             <Box sx={{ mt: 2, textAlign: 'center' }}>
               <Typography variant="body2" color="text.secondary">
-                Default login: admin / admin123
+                Don't have an account? <Link to="/register" style={{ color: '#0e7c61' }}>Register here</Link>
               </Typography>
             </Box>
           </Box>
         </Paper>
-      </Box>
-    </Container>
+      </Container>
+    </Box>
   );
 };
 

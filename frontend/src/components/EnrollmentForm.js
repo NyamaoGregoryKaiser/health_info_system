@@ -9,16 +9,57 @@ import { Formik, Form } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import { toast } from 'react-hot-toast';
 
 const validationSchema = Yup.object({
-  client: Yup.string().required('Client is required'),
-  program: Yup.string().required('Program is required'),
+  client: Yup.mixed().required('Client is required'),
+  program: Yup.number().required('Program is required'),
   enrollment_date: Yup.date().required('Enrollment date is required'),
   is_active: Yup.boolean(),
   facility_name: Yup.string().nullable(),
   mfl_code: Yup.string().nullable(),
   notes: Yup.string().nullable()
 });
+
+// Create direct API instance with correct backend URL
+const directApi = axios.create({
+  baseURL: 'http://localhost:8000/api',
+  headers: { 
+    'Content-Type': 'application/json',
+    'X-CSRFToken': document.cookie.match(/csrftoken=([^;]*)/)?.[1] || ''
+  },
+  withCredentials: true
+});
+
+// Add an interceptor to handle authentication
+directApi.interceptors.request.use(
+  async (config) => {
+    // Get user data from localStorage
+    const userData = localStorage.getItem('userData');
+    const isAuthenticated = localStorage.getItem('isAuthenticated');
+
+    // If authenticated, add token to headers
+    if (isAuthenticated === 'true' && userData) {
+      try {
+        const user = JSON.parse(userData);
+        if (user && user.id) {
+          // Add any additional auth headers if needed
+        }
+      } catch (e) {
+        console.error('Error parsing user data:', e);
+      }
+    }
+
+    // Ensure CSRF token is up to date
+    const csrfToken = document.cookie.match(/csrftoken=([^;]*)/)?.[1];
+    if (csrfToken) {
+      config.headers['X-CSRFToken'] = csrfToken;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 const EnrollmentForm = () => {
   const { id } = useParams();
@@ -33,9 +74,10 @@ const EnrollmentForm = () => {
   
   // Get clientId from location state if available (for pre-selection)
   const preselectedClientId = location.state?.clientId || '';
+  console.log('Preselected client ID:', preselectedClientId);
 
   const initialValues = {
-    client: preselectedClientId,
+    client: preselectedClientId || '',
     program: '',
     enrollment_date: dayjs(),
     is_active: true,
@@ -50,20 +92,59 @@ const EnrollmentForm = () => {
         setLoading(true);
         
         // Fetch clients and programs
-        const clientsResponse = await axios.get('/api/clients/');
+        const clientsResponse = await directApi.get('/clients/');
         // Ensure clients is always an array
         const clientsData = clientsResponse.data?.results || clientsResponse.data || [];
-        setClients(Array.isArray(clientsData) ? clientsData : []);
         
-        const programsResponse = await axios.get('/api/programs/');
+        // Process clients to ensure we have the right ID field
+        // The DB seems to expect a numeric client_id
+        const processedClients = clientsData.map(client => {
+          // Make sure client has an id property
+          if (!client.id && client.client_id) {
+            client.id = client.client_id;
+          }
+          
+          // Create a numeric version of client ID
+          let numericId = null;
+          
+          // Try to convert id to a number if possible
+          if (client.id) {
+            if (!isNaN(parseInt(client.id))) {
+              numericId = parseInt(client.id);
+            } else if (typeof client.id === 'string' && client.id.includes('-')) {
+              // This is likely a UUID
+              numericId = client.id; // Keep UUID for now
+            }
+          }
+            
+          return {
+            ...client,
+            // Add a numeric_id field to use for enrollment
+            numeric_id: numericId,
+            // Use the original id for display
+            display_name: `${client.first_name} ${client.last_name} (${client.id_number || 'No ID'})`
+          };
+        });
+        
+        setClients(processedClients);
+        
+        // Log the client data
+        console.log('Processed clients:', processedClients);
+        if (processedClients.length > 0) {
+          console.log('First client sample:', processedClients[0]);
+          console.log('Client ID type:', typeof processedClients[0].id);
+        }
+        
+        const programsResponse = await directApi.get('/programs/');
         // Ensure programs is always an array
         const programsData = programsResponse.data?.results || programsResponse.data || [];
         setPrograms(Array.isArray(programsData) ? programsData : []);
         
         // If editing, fetch enrollment details
         if (id) {
-          const enrollmentResponse = await axios.get(`/api/enrollments/${id}/`);
+          const enrollmentResponse = await directApi.get(`/enrollments/${id}/`);
           const enrollmentData = enrollmentResponse.data;
+          console.log('Editing existing enrollment:', enrollmentData);
           
           setEnrollment({
             ...enrollmentData,
@@ -75,35 +156,80 @@ const EnrollmentForm = () => {
       } catch (err) {
         setError('Failed to load data');
         setLoading(false);
-        console.error(err);
+        console.error('Error fetching data:', err);
       }
     };
     
     fetchData();
   }, [id]);
 
-  const handleSubmit = async (values, { setSubmitting, setStatus }) => {
+  const handleSubmit = async (values, { setSubmitting, resetForm }) => {
     try {
-      const formattedValues = {
-        ...values,
-        enrollment_date: values.enrollment_date.format('YYYY-MM-DD')
-      };
+      console.log('Submitting enrollment with values:', values);
       
-      if (isEditMode) {
-        await axios.put(`/api/enrollments/${id}/`, formattedValues);
-      } else {
-        await axios.post('/api/enrollments/', formattedValues);
+      // Find the selected client object to get its ID
+      const selectedClient = clients.find(c => c.id === values.client || c.numeric_id === values.client);
+      console.log('Selected client:', selectedClient);
+      
+      if (!selectedClient) {
+        throw new Error('Selected client not found');
       }
       
-      // If we came from a client page, go back to the client profile
+      // Format data for the enrollment_client endpoint which expects client_id as UUID
+      const enrollmentData = {
+        client_id: selectedClient.client_id || selectedClient.id,
+        program_id: values.program,
+        enrollment_date: dayjs(values.enrollment_date).format('YYYY-MM-DD'),
+        facility_name: values.facility_name || '',
+        mfl_code: values.mfl_code || '',
+        notes: values.notes || ''
+      };
+      
+      console.log('Prepared enrollment data:', enrollmentData);
+
+      if (id) {
+        // For editing existing enrollment
+        await directApi.put(`/enrollments/${id}/`, {
+          program: values.program,
+          enrollment_date: dayjs(values.enrollment_date).format('YYYY-MM-DD'),
+          is_active: values.is_active,
+          facility_name: values.facility_name || '',
+          mfl_code: values.mfl_code || '',
+          notes: values.notes || ''
+        });
+        toast.success('Enrollment updated successfully');
+      } else {
+        // For new enrollment, use the enroll_client endpoint
+        try {
+          const response = await directApi.post('/enrollments/enroll_client/', enrollmentData);
+          console.log('Enrollment creation response:', response.data);
+          resetForm();
+          toast.success('Client enrolled successfully');
+        } catch (postError) {
+          console.error('Detailed POST error:', {
+            status: postError.response?.status,
+            statusText: postError.response?.statusText,
+            data: postError.response?.data, 
+            message: postError.message,
+            stack: postError.stack
+          });
+          throw postError;
+        }
+      }
+      
       if (location.state?.clientId) {
         navigate(`/clients/${location.state.clientId}`);
       } else {
         navigate('/clients');
       }
+      
     } catch (err) {
-      setStatus({ error: 'Failed to save enrollment information' });
-      console.error(err);
+      console.error('Error submitting enrollment:', err);
+      const errorMessage = err.response?.data?.detail || 
+                          Object.values(err.response?.data || {}).flat().join(', ') ||
+                          err.message ||
+                          'Failed to save enrollment';
+      toast.error(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -145,19 +271,32 @@ const EnrollmentForm = () => {
                       id="client"
                       name="client"
                       label="Client"
-                      value={values.client}
-                      onChange={handleChange}
+                      value={values.client || ''}
+                      onChange={(e) => {
+                        const selectedValue = e.target.value;
+                        console.log('Client selected value:', selectedValue);
+                        // Directly set the field value
+                        setFieldValue('client', selectedValue);
+                      }}
                       onBlur={handleBlur}
                       error={touched.client && Boolean(errors.client)}
                       helperText={touched.client && errors.client}
                       disabled={Boolean(preselectedClientId)}
                       required
                     >
-                      {clients.map((client) => (
-                        <MenuItem key={client.client_id} value={client.client_id}>
-                          {client.first_name} {client.last_name} - {client.id_number || 'No ID'}
-                        </MenuItem>
-                      ))}
+                      <MenuItem value="">
+                        <em>Select a client</em>
+                      </MenuItem>
+                      {clients.map((client) => {
+                        // Use numeric_id if available, otherwise fall back to id
+                        const clientValue = client.numeric_id || client.id;
+                        console.log('Rendering client option:', client.id, 'value:', clientValue, 'name:', client.display_name || `${client.first_name} ${client.last_name}`);
+                        return (
+                          <MenuItem key={client.id} value={clientValue}>
+                            {client.display_name || `${client.first_name} ${client.last_name}`}
+                          </MenuItem>
+                        );
+                      })}
                     </TextField>
                   </Grid>
                   <Grid item xs={12} sm={6}>
@@ -167,13 +306,19 @@ const EnrollmentForm = () => {
                       id="program"
                       name="program"
                       label="Program"
-                      value={values.program}
-                      onChange={handleChange}
+                      value={values.program || ''}
+                      onChange={(e) => {
+                        console.log('Program selected:', e.target.value);
+                        setFieldValue('program', e.target.value);
+                      }}
                       onBlur={handleBlur}
                       error={touched.program && Boolean(errors.program)}
                       helperText={touched.program && errors.program}
                       required
                     >
+                      <MenuItem value="">
+                        <em>Select a program</em>
+                      </MenuItem>
                       {programs.map((program) => (
                         <MenuItem key={program.id} value={program.id}>
                           {program.name} ({program.code})

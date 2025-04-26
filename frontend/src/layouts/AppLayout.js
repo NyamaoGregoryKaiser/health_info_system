@@ -54,26 +54,34 @@ export default function AppLayout() {
 
   const handleLogout = async () => {
     try {
-      await logout();
-      navigate('/login');
+      const result = await logout();
+      if (result.success) {
+        navigate('/', { replace: true });
+      } else {
+        console.error('Logout failed:', result.error);
+        // If logout fails, still redirect to landing page
+        navigate('/', { replace: true });
+      }
     } catch (error) {
-      console.error('Logout failed:', error);
+      console.error('Logout error:', error);
+      // In case of error, still redirect to landing page
+      navigate('/', { replace: true });
     }
     setLogoutDialogOpen(false);
   };
 
   const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
+    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'Clients', icon: <PeopleIcon />, path: '/clients' },
     { text: 'Health Programs', icon: <HealthIcon />, path: '/programs' },
-    { text: 'Enrollments', icon: <EnrollmentIcon />, path: '/enrollments/new' },
+    { text: 'Enrollments', icon: <EnrollmentIcon />, path: '/enrollments' },
   ];
 
   const drawer = (
     <div>
       <Toolbar>
         <Typography variant="h6" noWrap component="div">
-          Kenya Health System
+          Afya Yetu Health System
         </Typography>
       </Toolbar>
       <Divider />
