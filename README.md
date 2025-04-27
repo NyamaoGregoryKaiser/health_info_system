@@ -131,3 +131,11 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Contributors
 
 - Nyamao Gregory Kaiser
+
+## Video Demonstration
+
+A video demonstration of the system in action is available on YouTube:
+
+[![Afya Yetu Health Information System Demo](https://img.youtube.com/vi/CSTiXUXo1PA/0.jpg)](https://youtu.be/CSTiXUXo1PA)
+
+Click on the image above to watch the demo video that showcases the system's features and functionality.

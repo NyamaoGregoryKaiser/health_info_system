@@ -289,6 +289,19 @@ def program_search(request):
     serializer = HealthProgramSerializer(programs, many=True)
     return Response({'results': serializer.data})
 
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def check_program_code_unique(request):
+    """
+    Check if a program code is unique
+    """
+    code = request.query_params.get('code', '')
+    if not code:
+        return Response({'is_unique': False, 'error': 'No code provided'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    exists = HealthProgram.objects.filter(code=code).exists()
+    return Response({'is_unique': not exists})
+
 @api_view(['POST'])
 @authentication_classes([])  # No authentication required
 @permission_classes([permissions.AllowAny])

@@ -61,7 +61,9 @@ const validationSchema = Yup.object({
   county: Yup.string().required('County is required'),
   sub_county: Yup.string().required('Sub-county is required'),
   ward: Yup.string().nullable(),
-  blood_type: Yup.string().nullable(),
+  blood_type: Yup.string()
+    .nullable()
+    .oneOf(['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'], 'Invalid blood type'),
   allergies: Yup.string().nullable()
 });
 
@@ -319,6 +321,7 @@ const ClientForm = () => {
                 <Grid container spacing={2} mb={3}>
                   <Grid item xs={12} sm={6}>
                     <TextField
+                      select
                       fullWidth
                       id="blood_type"
                       name="blood_type"
@@ -328,7 +331,17 @@ const ClientForm = () => {
                       onBlur={handleBlur}
                       error={touched.blood_type && Boolean(errors.blood_type)}
                       helperText={touched.blood_type && errors.blood_type}
-                    />
+                    >
+                      <MenuItem value="">Not Specified</MenuItem>
+                      <MenuItem value="A+">A+</MenuItem>
+                      <MenuItem value="A-">A-</MenuItem>
+                      <MenuItem value="B+">B+</MenuItem>
+                      <MenuItem value="B-">B-</MenuItem>
+                      <MenuItem value="AB+">AB+</MenuItem>
+                      <MenuItem value="AB-">AB-</MenuItem>
+                      <MenuItem value="O+">O+</MenuItem>
+                      <MenuItem value="O-">O-</MenuItem>
+                    </TextField>
                   </Grid>
                   <Grid item xs={12}>
                     <TextField

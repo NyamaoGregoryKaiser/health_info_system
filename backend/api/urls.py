@@ -6,7 +6,7 @@ from .views import (
     ProgramCategoryViewSet, login_view, logout_view, 
     get_csrf_token, get_user_info, dashboard_summary,
     register_client, program_search, client_search,
-    external_client_profile
+    external_client_profile, check_program_code_unique
 )
 
 router = DefaultRouter()
@@ -35,6 +35,7 @@ urlpatterns = [
     
     # Search endpoints
     path('programs/search/', program_search, name='program_search'),
+    path('programs/check-code-unique/', check_program_code_unique, name='check_program_code_unique'),
     path('clients/search/', client_search, name='client_search'),
     
     # External API endpoints

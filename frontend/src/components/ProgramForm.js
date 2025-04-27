@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
   Box, Button, Card, CardContent, TextField, Grid, 
-  Typography, MenuItem, Divider
+  Typography, MenuItem, Divider, InputAdornment, IconButton
 } from '@mui/material';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { Formik, Form } from 'formik';
 import * as Yup from 'yup';
@@ -66,6 +67,59 @@ const validationSchema = Yup.object({
   location: Yup.string().required('Location is required'),
   category: Yup.number().required('Category is required')
 });
+
+// Function to generate a program code
+const generateProgramCode = async (name, categoryId, categories, directApi) => {
+  if (!name) return '';
+  
+  // Get the first letters of each word in the program name
+  const nameInitials = name
+    .split(' ')
+    .filter(word => word.length > 0)
+    .map(word => word[0].toUpperCase())
+    .join('');
+  
+  // Get category prefix
+  let categoryPrefix = '';
+  if (categoryId && categories.length > 0) {
+    const category = categories.find(cat => cat.id === parseInt(categoryId, 10));
+    if (category) {
+      categoryPrefix = category.name.substring(0, 2).toUpperCase();
+    }
+  }
+  
+  // Try to generate a unique code
+  let isUnique = false;
+  let code = '';
+  let attempts = 0;
+  
+  while (!isUnique && attempts < 5) {
+    // Generate a unique identifier (timestamp-based)
+    const uniqueId = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    
+    // Combine everything
+    code = `${categoryPrefix}${nameInitials}-${uniqueId}`;
+    
+    // Check if the code is unique
+    if (directApi) {
+      try {
+        const response = await directApi.get(`/programs/check-code-unique/?code=${code}`);
+        isUnique = response.data.is_unique;
+      } catch (error) {
+        console.error('Error checking code uniqueness:', error);
+        // If there's an error, just continue with the generated code
+        isUnique = true;
+      }
+    } else {
+      // If no API is available, assume the code is unique
+      isUnique = true;
+    }
+    
+    attempts++;
+  }
+  
+  return code;
+};
 
 const ProgramForm = () => {
   const { id } = useParams();
@@ -137,11 +191,17 @@ const ProgramForm = () => {
       // Get the selected category ID
       const categoryId = parseInt(values.category, 10);
       
+      // If code is empty, auto-generate it
+      let programCode = values.code ? values.code.trim() : '';
+      if (!programCode) {
+        programCode = await generateProgramCode(values.name, categoryId, categories, directApi);
+      }
+      
       // Create formatted values with the correct field structure
       const formattedValues = {
         name: values.name,
         description: values.description,
-        code: values.code ? values.code.trim() : '',
+        code: programCode,
         start_date: values.start_date.format('YYYY-MM-DD'),
         end_date: values.end_date ? values.end_date.format('YYYY-MM-DD') : null,
         eligibility_criteria: values.eligibility_criteria || '',
@@ -218,6 +278,14 @@ const ProgramForm = () => {
     }
   };
 
+  // Function to handle code generation
+  const handleGenerateCode = async (name, categoryId, setFieldValue) => {
+    if (name) {
+      const newCode = await generateProgramCode(name, categoryId, categories, directApi);
+      setFieldValue('code', newCode);
+    }
+  };
+
   if (loading) return <Typography>Loading...</Typography>;
   if (error) return <Typography color="error">{error}</Typography>;
   if (categories.length === 0) return <Typography>No program categories found. Please create categories first.</Typography>;
@@ -253,7 +321,13 @@ const ProgramForm = () => {
                       name="name"
                       label="Program Name"
                       value={values.name}
-                      onChange={handleChange}
+                      onChange={(e) => {
+                        handleChange(e);
+                        // Auto-generate code if creating a new program and code is empty
+                        if (!isEditMode && !values.code && e.target.value) {
+                          handleGenerateCode(e.target.value, values.category, setFieldValue);
+                        }
+                      }}
                       onBlur={handleBlur}
                       error={touched.name && Boolean(errors.name)}
                       helperText={touched.name && errors.name}
@@ -272,6 +346,19 @@ const ProgramForm = () => {
                       error={touched.code && Boolean(errors.code)}
                       helperText={touched.code && errors.code}
                       required
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              onClick={() => handleGenerateCode(values.name, values.category, setFieldValue)}
+                              edge="end"
+                              title="Auto-generate code"
+                            >
+                              <RefreshIcon />
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }}
                     />
                   </Grid>
                   <Grid item xs={12}>
@@ -326,7 +413,13 @@ const ProgramForm = () => {
                       name="category"
                       label="Category"
                       value={values.category}
-                      onChange={handleChange}
+                      onChange={(e) => {
+                        handleChange(e);
+                        // Update the code if name exists and auto-generated code is needed
+                        if (values.name && (!values.code || values.code.includes('-'))) {
+                          handleGenerateCode(values.name, e.target.value, setFieldValue);
+                        }
+                      }}
                       onBlur={handleBlur}
                       error={touched.category && Boolean(errors.category)}
                       helperText={touched.category && errors.category}
