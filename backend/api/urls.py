@@ -5,7 +5,8 @@ from .views import (
     HealthProgramViewSet, ClientViewSet, EnrollmentViewSet, 
     ProgramCategoryViewSet, login_view, logout_view, 
     get_csrf_token, get_user_info, dashboard_summary,
-    register_client, program_search, client_search
+    register_client, program_search, client_search,
+    external_client_profile
 )
 
 router = DefaultRouter()
@@ -35,4 +36,8 @@ urlpatterns = [
     # Search endpoints
     path('programs/search/', program_search, name='program_search'),
     path('clients/search/', client_search, name='client_search'),
+    
+    # External API endpoints
+    path('external/clients/', external_client_profile, name='external_client_list'),
+    path('external/clients/<uuid:client_id>/', external_client_profile, name='external_client_detail'),
 ] 

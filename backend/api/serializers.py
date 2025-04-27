@@ -24,11 +24,27 @@ class ProgramCategorySerializer(serializers.ModelSerializer):
 class HealthProgramSerializer(serializers.ModelSerializer):
     category = ProgramCategorySerializer(read_only=True)
     category_id = serializers.IntegerField(write_only=True)
+    is_active = serializers.SerializerMethodField()
 
     class Meta:
         model = HealthProgram
-        fields = ['id', 'name', 'description', 'start_date', 'end_date', 
-                  'eligibility_criteria', 'capacity', 'location', 'category', 'category_id']
+        fields = ['id', 'name', 'description', 'code', 'start_date', 'end_date', 
+                  'eligibility_criteria', 'capacity', 'location', 'category', 'category_id', 'is_active']
+
+    def get_is_active(self, obj):
+        try:
+            return obj.is_active
+        except:
+            # Default to True if there's an error calculating is_active
+            return True
+
+    def validate_code(self, value):
+        """
+        Check that the code is not empty or just whitespace.
+        """
+        if not value or value.strip() == '':
+            raise serializers.ValidationError("Program code cannot be empty.")
+        return value.strip()
 
 class ClientSerializer(serializers.ModelSerializer):
     age = serializers.SerializerMethodField()
@@ -161,3 +177,45 @@ class ClientRegistrationSerializer(serializers.Serializer):
         )
         
         return client 
+
+class ExternalClientProfileSerializer(serializers.ModelSerializer):
+    """
+    Serializer for external API integration.
+    
+    This serializer exposes client profile data in a standardized format for external systems
+    to consume. It includes all necessary fields for interoperability while maintaining
+    privacy constraints.
+    """
+    age = serializers.SerializerMethodField()
+    full_name = serializers.SerializerMethodField()
+    enrollments = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
+    updated_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S")
+    
+    class Meta:
+        model = Client
+        fields = [
+            'client_id', 'full_name', 'first_name', 'last_name', 
+            'id_number', 'date_of_birth', 'age', 'gender',
+            'phone_number', 'email', 'county', 'sub_county', 
+            'ward', 'blood_type', 'allergies',
+            'enrollments', 'created_at', 'updated_at'
+        ]
+    
+    def get_age(self, obj):
+        return obj.get_age()
+    
+    def get_full_name(self, obj):
+        return obj.get_full_name()
+    
+    def get_enrollments(self, obj):
+        enrollments = Enrollment.objects.filter(client=obj)
+        # Return simplified enrollment data for external systems
+        return [{
+            'program_name': enrollment.program.name,
+            'program_code': enrollment.program.code,
+            'enrollment_date': enrollment.enrollment_date,
+            'is_active': enrollment.is_active,
+            'facility_name': enrollment.facility_name,
+            'mfl_code': enrollment.mfl_code
+        } for enrollment in enrollments] 

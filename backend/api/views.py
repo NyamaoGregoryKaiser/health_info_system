@@ -9,6 +9,11 @@ from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie, csrf_exempt
 from django.contrib.auth.models import User
 from django.http import JsonResponse
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
 from health_programs.models import HealthProgram, ProgramCategory
 from clients.models import Client, Enrollment
@@ -21,7 +26,8 @@ from .serializers import (
     ClientDetailSerializer,
     EnrollClientSerializer,
     UserSerializer,
-    ClientRegistrationSerializer
+    ClientRegistrationSerializer,
+    ExternalClientProfileSerializer
 )
 
 # Authentication views
@@ -118,10 +124,32 @@ class HealthProgramViewSet(viewsets.ModelViewSet):
     serializer_class = HealthProgramSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['name', 'code', 'description']
+    
+    def get_permissions(self):
+        """
+        Allow unauthenticated access to list and retrieve
+        Require authentication for create, update, delete
+        """
+        if self.action in ['list', 'retrieve']:
+            permission_classes = [permissions.AllowAny]
+        else:
+            permission_classes = [permissions.IsAuthenticated]
+        return [permission() for permission in permission_classes]
 
 class ProgramCategoryViewSet(viewsets.ModelViewSet):
     queryset = ProgramCategory.objects.all()
     serializer_class = ProgramCategorySerializer
+    
+    def get_permissions(self):
+        """
+        Allow unauthenticated access to list and retrieve
+        Require authentication for create, update, delete
+        """
+        if self.action in ['list', 'retrieve']:
+            permission_classes = [permissions.AllowAny]
+        else:
+            permission_classes = [permissions.IsAuthenticated]
+        return [permission() for permission in permission_classes]
 
 class EnrollmentViewSet(viewsets.ModelViewSet):
     queryset = Enrollment.objects.all()
@@ -287,4 +315,90 @@ def register_client(request):
     return Response({
         'success': False,
         'detail': serializer.errors
-    }, status=status.HTTP_400_BAD_REQUEST) 
+    }, status=status.HTTP_400_BAD_REQUEST)
+
+@swagger_auto_schema(
+    method='get',
+    operation_description="Retrieve client profiles for external systems",
+    manual_parameters=[
+        openapi.Parameter('id_number', openapi.IN_QUERY, description="Filter by national ID number", type=openapi.TYPE_STRING),
+        openapi.Parameter('phone', openapi.IN_QUERY, description="Filter by phone number", type=openapi.TYPE_STRING),
+        openapi.Parameter('updated_since', openapi.IN_QUERY, description="Filter by last update time (ISO format)", type=openapi.TYPE_STRING),
+    ],
+    responses={
+        200: ExternalClientProfileSerializer(many=True),
+        401: "Unauthorized. Authentication credentials were not provided or are invalid.",
+        404: "Not found. The specified client does not exist.",
+    },
+    security=[{"Token": []}],
+    tags=['External API']
+)
+@api_view(['GET'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def external_client_profile(request, client_id=None):
+    """
+    API endpoint to expose client profile data for external systems.
+    
+    This endpoint allows external systems to access client data using token authentication.
+    It can return either a specific client profile by client_id or a list of all clients.
+    
+    Parameters:
+    - client_id (optional): UUID of the specific client to retrieve
+    
+    Query Parameters:
+    - id_number: Filter by national ID number
+    - phone: Filter by phone number
+    - updated_since: Filter clients updated after this datetime (ISO format)
+    
+    Returns:
+    - 200 OK: Client profile data
+    - 404 Not Found: If client_id is provided but no matching client exists
+    - 401 Unauthorized: If no valid authentication token is provided
+    
+    Authentication:
+    - Requires token authentication with valid API token
+    - Example: Authorization: Token 9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b
+    """
+    # Check for filters
+    id_number = request.query_params.get('id_number', None)
+    phone = request.query_params.get('phone', None)
+    updated_since = request.query_params.get('updated_since', None)
+    
+    # Start with all clients
+    queryset = Client.objects.all()
+    
+    # Apply filters if provided
+    if id_number:
+        queryset = queryset.filter(id_number=id_number)
+    if phone:
+        queryset = queryset.filter(phone_number=phone)
+    if updated_since:
+        try:
+            queryset = queryset.filter(updated_at__gte=updated_since)
+        except:
+            return Response(
+                {"error": "Invalid date format for updated_since. Use ISO format (YYYY-MM-DDTHH:MM:SS)."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    # If client_id is provided, get that specific client
+    if client_id:
+        try:
+            client = queryset.get(client_id=client_id)
+            serializer = ExternalClientProfileSerializer(client)
+            return Response(serializer.data)
+        except Client.DoesNotExist:
+            return Response(
+                {"error": f"Client with ID {client_id} not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+    
+    # Otherwise, return paginated list of clients
+    paginator = PageNumberPagination()
+    paginator.page_size = 10
+    
+    paginated_clients = paginator.paginate_queryset(queryset, request)
+    serializer = ExternalClientProfileSerializer(paginated_clients, many=True)
+    
+    return paginator.get_paginated_response(serializer.data) 

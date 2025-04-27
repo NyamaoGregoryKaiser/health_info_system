@@ -7,7 +7,8 @@ import {
 import {
   Add as AddIcon,
   Edit as EditIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
@@ -28,16 +29,23 @@ directApi.interceptors.request.use(
     // Get user data from localStorage
     const userData = localStorage.getItem('userData');
     const isAuthenticated = localStorage.getItem('isAuthenticated');
+    const authToken = localStorage.getItem('authToken');
 
     // If authenticated, add token to headers
-    if (isAuthenticated === 'true' && userData) {
-      try {
-        const user = JSON.parse(userData);
-        if (user && user.id) {
-          // Add any additional auth headers if needed
+    if (isAuthenticated === 'true') {
+      if (authToken) {
+        config.headers['Authorization'] = `Token ${authToken}`;
+      }
+      
+      if (userData) {
+        try {
+          const user = JSON.parse(userData);
+          if (user && user.id) {
+            // Add any additional auth headers if needed
+          }
+        } catch (e) {
+          console.error('Error parsing user data:', e);
         }
-      } catch (e) {
-        console.error('Error parsing user data:', e);
       }
     }
 
@@ -59,28 +67,98 @@ const ProgramList = () => {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
+  const fetchPrograms = async () => {
+    try {
+      setLoading(true);
+      setError(null); // Clear any previous errors
+      
+      console.log('Fetching programs...');
+      
+      // Load all programs (handle pagination)
+      let allPrograms = [];
+      let nextPageUrl = '/programs/';
+      
+      while (nextPageUrl) {
+        const programsResponse = await directApi.get(nextPageUrl);
+        console.log('Programs response:', programsResponse.data);
+        
+        // Add the current page results to our array
+        const results = programsResponse.data?.results || [];
+        allPrograms = [...allPrograms, ...results];
+        
+        // Check if there's another page
+        nextPageUrl = programsResponse.data.next ? 
+          programsResponse.data.next.replace('http://localhost:8000/api', '') : 
+          null;
+      }
+      
+      setPrograms(allPrograms);
+      console.log('Total programs loaded:', allPrograms.length);
+      
+      // Get categories
+      const categoriesResponse = await directApi.get('/program-categories/');
+      console.log('Categories response:', categoriesResponse.data);
+      
+      const categoriesData = categoriesResponse.data?.results || categoriesResponse.data || [];
+      setCategories(Array.isArray(categoriesData) ? categoriesData : []);
+      
+      setLoading(false);
+    } catch (err) {
+      console.error('Error loading programs:', err);
+      
+      // Show a more detailed error message
+      if (err.response) {
+        // The server responded with a status code outside the 2xx range
+        if (err.response.status === 401 || err.response.status === 403) {
+          setError('Please log in to view programs');
+        } else {
+          setError(`Server error (${err.response.status}): ${err.response.data?.detail || 'Unknown error'}`);
+        }
+      } else if (err.request) {
+        // The request was made but no response was received
+        setError('No response from server. Please check your connection.');
+      } else {
+        // Something else happened while setting up the request
+        setError(`Error: ${err.message}`);
+      }
+      
+      setLoading(false);
+    }
+  };
+  
   useEffect(() => {
-    const fetchPrograms = async () => {
-      try {
-        setLoading(true);
-        const programsResponse = await directApi.get('/programs/');
-        // Make sure we have an array, even if the response is different
-        const programsData = programsResponse.data?.results || programsResponse.data || [];
-        setPrograms(Array.isArray(programsData) ? programsData : []);
+    // Show loading indicator and refresh data when component mounts
+    const loadData = async () => {
+      await fetchPrograms();
+      
+      // Check if there's a refresh param in the URL (coming from form)
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('refresh') === 'true') {
+        toast.success('Program list refreshed with the latest data!', {
+          duration: 3000,
+          icon: '🔄'
+        });
         
-        const categoriesResponse = await directApi.get('/program-categories/');
-        const categoriesData = categoriesResponse.data?.results || categoriesResponse.data || [];
-        setCategories(Array.isArray(categoriesData) ? categoriesData : []);
-        
-        setLoading(false);
-      } catch (err) {
-        setError('Failed to load programs');
-        setLoading(false);
-        console.error('Error loading programs:', err);
+        // Clean up URL
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
       }
     };
     
-    fetchPrograms();
+    loadData();
+    
+    // Add event listener to refresh data when page is focused (coming back from form)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchPrograms();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   // Create programsByCategory object safely
@@ -89,31 +167,80 @@ const ProgramList = () => {
   // Only try to reduce if programs is an array
   if (Array.isArray(programs) && programs.length > 0) {
     programs.forEach(program => {
-      const categoryId = program.category;
-      if (categoryId) {  // Only process if category ID exists
+      // Extract the category ID safely regardless of format
+      let categoryId;
+      
+      if (program.category) {
+        // If it's an object with an id property
+        if (typeof program.category === 'object' && program.category.id) {
+          categoryId = program.category.id;
+        } 
+        // If it's just the ID itself
+        else if (typeof program.category === 'number' || typeof program.category === 'string') {
+          categoryId = program.category;
+        }
+      } 
+      // Fallback to category_id if available
+      else if (program.category_id) {
+        categoryId = program.category_id;
+      }
+        
+      if (categoryId) {  // Only process if we found a valid category ID
+        categoryId = Number(categoryId); // Ensure it's a number for consistency
         if (!programsByCategory[categoryId]) {
           programsByCategory[categoryId] = [];
         }
         programsByCategory[categoryId].push(program);
+      } else {
+        console.warn('Program with no category found:', program);
       }
     });
   }
 
   if (loading) return <Typography>Loading programs...</Typography>;
-  if (error) return <Typography color="error">{error}</Typography>;
+  
+  if (error) {
+    if (error.includes('Please log in')) {
+      return (
+        <Box sx={{ textAlign: 'center', mt: 4 }}>
+          <Typography color="error" gutterBottom>{error}</Typography>
+          <Button 
+            variant="contained" 
+            color="primary"
+            onClick={() => navigate('/login')}
+            sx={{ mt: 2 }}
+          >
+            Log In
+          </Button>
+        </Box>
+      );
+    }
+    return <Typography color="error">{error}</Typography>;
+  }
 
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h5">Health Programs</Typography>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<AddIcon />}
-          onClick={() => navigate('/programs/new')}
-        >
-          Add Program
-        </Button>
+        <Box>
+          <Button
+            variant="outlined"
+            color="primary"
+            startIcon={<RefreshIcon />}
+            onClick={fetchPrograms}
+            sx={{ mr: 2 }}
+          >
+            Refresh
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AddIcon />}
+            onClick={() => navigate('/programs/new')}
+          >
+            Add Program
+          </Button>
+        </Box>
       </Box>
 
       {categories.length === 0 ? (

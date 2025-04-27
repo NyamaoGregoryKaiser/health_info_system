@@ -9,6 +9,7 @@ import { Formik, Form } from 'formik';
 import * as Yup from 'yup';
 import axios from 'axios';
 import dayjs from 'dayjs';
+import toast from 'react-hot-toast';
 
 // Create a direct API instance with the correct backend URL
 const directApi = axios.create({
@@ -53,7 +54,11 @@ directApi.interceptors.request.use(
 const validationSchema = Yup.object({
   name: Yup.string().required('Program name is required'),
   description: Yup.string().required('Description is required'),
-  code: Yup.string().required('Program code is required'),
+  code: Yup.string().trim().required('Program code is required').test(
+    'not-empty-after-trim',
+    'Program code cannot be empty',
+    (value) => value && value.trim() !== ''
+  ),
   start_date: Yup.date().required('Start date is required'),
   end_date: Yup.date().nullable(),
   eligibility_criteria: Yup.string().nullable(),
@@ -136,7 +141,7 @@ const ProgramForm = () => {
       const formattedValues = {
         name: values.name,
         description: values.description,
-        code: values.code,
+        code: values.code ? values.code.trim() : '',
         start_date: values.start_date.format('YYYY-MM-DD'),
         end_date: values.end_date ? values.end_date.format('YYYY-MM-DD') : null,
         eligibility_criteria: values.eligibility_criteria || '',
@@ -150,10 +155,38 @@ const ProgramForm = () => {
       
       if (isEditMode) {
         await directApi.put(`/programs/${id}/`, formattedValues);
+        toast.success('Program updated successfully!', {
+          duration: 5000,
+          style: {
+            background: '#0e7c61',
+            color: '#fff',
+            fontWeight: 'bold',
+            fontSize: '16px',
+            padding: '16px'
+          }
+        });
+        // Brief delay to ensure update is processed
+        setTimeout(() => {
+          navigate('/programs?refresh=true');
+        }, 500);
       } else {
         try {
           const response = await directApi.post('/programs/', formattedValues);
           console.log('Success response:', response.data);
+          toast.success('Program created successfully!', {
+            duration: 5000,
+            style: {
+              background: '#0e7c61',
+              color: '#fff',
+              fontWeight: 'bold',
+              fontSize: '16px',
+              padding: '16px'
+            }
+          });
+          // Brief delay to ensure creation is processed
+          setTimeout(() => {
+            navigate('/programs?refresh=true');
+          }, 500);
         } catch (postError) {
           // Log more detailed error information
           console.error('Error response status:', postError.response?.status);
@@ -162,8 +195,6 @@ const ProgramForm = () => {
           throw postError;
         }
       }
-      
-      navigate('/programs');
     } catch (err) {
       let errorMsg = 'Unknown error';
       
