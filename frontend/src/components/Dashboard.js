@@ -98,7 +98,7 @@ export default function Dashboard() {
 
   // Prepare chart data for enrollments by program
   const enrollmentProgramData = {
-    labels: enrollmentsByProgram.map(item => item?.program__name || 'Unknown'),
+    labels: enrollmentsByProgram.map(item => item?.name || 'Unknown'),
     datasets: [
       {
         label: 'Enrollments',
