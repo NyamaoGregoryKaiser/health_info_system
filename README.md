@@ -3,7 +3,7 @@
 
 A video demonstration of the system in action is available on YouTube:
 
-[![Afya Yetu Health Information System Demo](https://img.youtube.com/vi/FukiO-P0VAw/0.jpg)](https://youtu.be/FukiO-P0VAw)
+[![Afya Yetu Health Information System Demo](https://img.youtube.com/vi/FukiO-P0VAw/0.jpg)](https://dai.ly/k4j1J7GBTe03YHCWBFs)
 
 Click on the image above to watch the demo video that showcases the system's features and functionality.
 
